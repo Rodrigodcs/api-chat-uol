@@ -1,56 +1,22 @@
 import cors from "cors"
 import express from "express"
 import dayjs from "dayjs"
+import {stripHtml} from "string-strip-html"
+import fs from "fs"
 
 const app = express()
 app.use(cors())
 app.use(express.json());
 
-let participants=[{name:"pedro", lastStatus: Date.now()},{name:"rodrigo", lastStatus: Date.now()}]
-const messages=[
-    {
-        from: 'pedro1', 
-        to: 'Todos', 
-        text: 'e ae', 
-        type: 'message', 
-        time: dayjs().format("HH:mm:ss")
-    },
-    {
-        from: 'rodrigo1', 
-        to: 'Todos', 
-        text: 'bom dia', 
-        type: 'private_message', 
-        time: dayjs().format("HH:mm:ss")
-    },
-    {
-        from: 'pedro2', 
-        to: 'Todos', 
-        text: 'e ae', 
-        type: 'message', 
-        time: dayjs().format("HH:mm:ss")
-    },
-    {
-        from: 'rodrigo2', 
-        to: 'Todos', 
-        text: 'bom dia', 
-        type: 'private_message', 
-        time: dayjs().format("HH:mm:ss")
-    },
-    {
-        from: 'pedro3', 
-        to: 'Todos', 
-        text: 'e ae', 
-        type: 'message', 
-        time: dayjs().format("HH:mm:ss")
-    },
-    {
-        from: 'rodrigo3', 
-        to: 'pedro3', 
-        text: 'bom dia', 
-        type: 'private_message', 
-        time: dayjs().format("HH:mm:ss")
-    }
-]
+function verifyExistingParticipants(){
+    return fs.existsSync('participants.txt') ? JSON.parse(fs.readFileSync(`./participants.txt`,'utf8')) : [];
+}
+function verifyExistingMessages(){
+    return fs.existsSync('messages.txt') ? JSON.parse(fs.readFileSync(`./messages.txt`,'utf8')) : [];
+}
+
+let participants = verifyExistingParticipants() 
+const messages = verifyExistingMessages()
 
 setInterval(()=>{
     participants=participants.filter(p=>Date.now()-p.lastStatus<=10000)
@@ -63,7 +29,7 @@ app.post('/participants',(req,res)=>{
         res.sendStatus(400)
     }else{
         participants.push({
-            name: req.body.name,
+            name: stripHtml(req.body.name).result,
             lastStatus: Date.now()
         })
         messages.push({
@@ -74,8 +40,9 @@ app.post('/participants',(req,res)=>{
             time: dayjs().format("HH:mm:ss")
         })
         res.sendStatus(200)
+        overwriteData()
+        console.log(participants)
     }
-    console.log(participants)
 })
 
 //PEGAR TODOS PARTICIPANTES
@@ -95,10 +62,10 @@ app.post('/messages',(req,res)=>{
             time: dayjs().format("HH:mm:ss")
         })
         res.sendStatus(200)
+        overwriteData()
     }else{
         res.sendStatus(400)
     }
-    console.log(messages.length)
 })
 
 //PEGAR TODAS AS MENSAGENS
@@ -119,13 +86,17 @@ app.post("/status",(req,res)=>{
     if(userIndex!==-1){
         participants[userIndex].lastStatus=Date.now()
         res.sendStatus(200)
+        overwriteData()
     }else{
         res.sendStatus(400)
     }
 })
 
-
+function overwriteData(){
+    fs.writeFileSync(`participants.txt`,JSON.stringify(participants))
+    fs.writeFileSync(`messages.txt`,JSON.stringify(messages))
+}
 
 app.listen(4000, ()=>{
-    console.log("Server running on port 4000")
+    console.log("Server running on port 4000") 
 })
