@@ -3,33 +3,42 @@ import express from "express"
 import dayjs from "dayjs"
 import {stripHtml} from "string-strip-html"
 import fs from "fs"
+import Joi from "joi"
 
 const app = express()
 app.use(cors())
 app.use(express.json());
 
+
+
+let participants = verifyExistingParticipants() 
+const messages = verifyExistingMessages()
+
 function verifyExistingParticipants(){
     return fs.existsSync('participants.txt') ? JSON.parse(fs.readFileSync(`./participants.txt`,'utf8')) : [];
 }
+
 function verifyExistingMessages(){
     return fs.existsSync('messages.txt') ? JSON.parse(fs.readFileSync(`./messages.txt`,'utf8')) : [];
 }
 
-let participants = verifyExistingParticipants() 
-const messages = verifyExistingMessages()
+function overwriteData(){
+    fs.writeFileSync(`participants.txt`,JSON.stringify(participants))
+    fs.writeFileSync(`messages.txt`,JSON.stringify(messages))
+}
 
 setInterval(()=>{
     participants=participants.filter(p=>Date.now()-p.lastStatus<=10000)
 },15000)
 
-//NOVO PARTICIPANTE
 app.post('/participants',(req,res)=>{
     const userNameTaken = participants.find(user=>user.name===req.body.name)
-    if(userNameTaken||!req.body.name){
+    if(req.body.name){req.body.name=stripHtml(req.body.name).result.trim()}
+    if(userNameTaken||participantSchema.validate(req.body).error){
         res.sendStatus(400)
     }else{
         participants.push({
-            name: stripHtml(req.body.name).result,
+            name: req.body.name,
             lastStatus: Date.now()
         })
         messages.push({
@@ -41,19 +50,21 @@ app.post('/participants',(req,res)=>{
         })
         res.sendStatus(200)
         overwriteData()
-        console.log(participants)
     }
 })
 
-//PEGAR TODOS PARTICIPANTES
 app.get("/participants",(req,res)=>{
     res.send(participants)
 })
 
-//POSTAR NOVA MENSAGEM
 app.post('/messages',(req,res)=>{
-    if((req.body.type==='message' || req.body.type==='private_message') && 
-        req.body.to && req.body.text && participants.find(p=>p.name===req.headers.user)){
+
+    req.headers.user=stripHtml(req.headers.user).result.trim()
+    req.body.to=stripHtml(req.body.to).result.trim()
+    req.body.text=stripHtml(req.body.text).result.trim()
+    req.body.type=stripHtml(req.body.type).result.trim()
+
+    if(!messageSchema.validate(req.body).error && participants.find(p=>p.name===req.headers.user)){
         messages.push({
             from: req.headers.user, 
             to: req.body.to, 
@@ -68,7 +79,6 @@ app.post('/messages',(req,res)=>{
     }
 })
 
-//PEGAR TODAS AS MENSAGENS
 app.get("/messages",(req,res)=>{
     const filteredMessages = messages.filter(m=> {
         return (m.type!=='private_message' || 
@@ -77,10 +87,10 @@ app.get("/messages",(req,res)=>{
                 m.from===req.headers.user)
     })
     const lastMessages=filteredMessages.filter((m,i)=>i>messages.length-parseInt(req.query.limit))
+    console.log(lastMessages)
     res.send(lastMessages)
 })
 
-//STATUS DE PARTICIPANTE
 app.post("/status",(req,res)=>{
     const userIndex = participants.findIndex(p=>p.name===req.headers.user)
     if(userIndex!==-1){
@@ -92,10 +102,15 @@ app.post("/status",(req,res)=>{
     }
 })
 
-function overwriteData(){
-    fs.writeFileSync(`participants.txt`,JSON.stringify(participants))
-    fs.writeFileSync(`messages.txt`,JSON.stringify(messages))
-}
+const participantSchema = Joi.object({
+    name: Joi.string().min(4).required()
+})
+
+const messageSchema = Joi.object({
+    to: Joi.string().min(1).required(),
+    text: Joi.string().min(1).required(),
+    type: Joi.string().valid('message').valid('private_message').required()
+})
 
 app.listen(4000, ()=>{
     console.log("Server running on port 4000") 

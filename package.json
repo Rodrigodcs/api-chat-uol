@@ -15,6 +15,7 @@
     "dayjs": "^1.10.5",
     "express": "^4.17.1",
     "fs": "0.0.1-security",
+    "joi": "^17.4.0",
     "string-strip-html": "^8.3.0"
   },
   "devDependencies": {
