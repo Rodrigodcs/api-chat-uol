@@ -103,7 +103,7 @@ app.post("/status",(req,res)=>{
 })
 
 const participantSchema = Joi.object({
-    name: Joi.string().min(4).required()
+    name: Joi.string().min(1).required()
 })
 
 const messageSchema = Joi.object({
